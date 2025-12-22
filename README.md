@@ -69,3 +69,7 @@ Preliminary runs (N=4, G=4) using Llama-3-8B as the backend demonstrate strong c
 ├── config/                  # Hydra configuration files
 └── prompt_templates/        # Jinja2 templates for Socratic tutoring
 ```
+
+## Ongoing improvements
+1. Trying to structure code into proper python files.
+2. Working on using SLM as evaluator and try to decrease the compute.  
