@@ -1,0 +1,120 @@
+# Complete configuration for EPT Evolution
+# Uses Llama 3.1 8B via OpenRouter API
+
+# Teacher model (tutor being optimized)
+teacher_model:
+  model_name_or_path: "meta-llama/llama-3.1-8b-instruct"
+  use_openrouter: true
+  use_gemini: false
+  vllm:
+    temperature: 0.7
+    top_k: 50
+    top_p: 0.95
+    max_length: 4096
+    max_num_seqs: 256
+    gpu_memory_utilization: 0.5
+    number_of_gpus_per_instance: 1
+    max_number_of_instances: -1
+    from_0: true
+    load_and_unload: true
+    bits_and_bytes: false
+    enable_sleep_mode: true
+    use_v0: true
+    enforce_eager: false
+  lora:
+    enable: false
+    rank: 16
+    alpha: 32
+    target_modules: "all-linear"
+    dropout: 0.01
+    bias: "none"
+
+# Student model (simulated learner)  
+student_model:
+  model_name_or_path: "meta-llama/llama-3.1-8b-instruct"
+  use_openrouter: true
+  use_gemini: false
+  vllm:
+    temperature: 0.8
+    top_k: 50
+    top_p: 0.95
+    max_length: 2048
+    max_num_seqs: 256
+    gpu_memory_utilization: 0.5
+    number_of_gpus_per_instance: 1
+    max_number_of_instances: -1
+    from_0: true
+    load_and_unload: true
+    bits_and_bytes: false
+    enable_sleep_mode: true
+    use_v0: true
+    enforce_eager: false
+
+# Judge model (for evaluating pedagogy)
+judge_model:
+  model_name_or_path: "meta-llama/llama-3.1-8b-instruct"
+  use_openrouter: true
+  use_gemini: false
+  vllm:
+    temperature: 0.3
+    top_k: 50
+    top_p: 0.95
+    max_length: 2048
+    max_num_seqs: 256
+    gpu_memory_utilization: 0.5
+    number_of_gpus_per_instance: 1
+    max_number_of_instances: -1
+    from_0: true
+    load_and_unload: true
+    bits_and_bytes: false
+    enable_sleep_mode: true
+    use_v0: true
+    enforce_eager: false
+
+# Reward model - use "Answer" for simple correctness checking
+reward_model:
+  model_name_or_path: "Answer"
+  vllm:
+    temperature: 0.0
+    top_k: 50
+    top_p: 1.0
+    max_length: 4096
+    max_num_seqs: 256
+    gpu_memory_utilization: 0.5
+    number_of_gpus_per_instance: 1
+    max_number_of_instances: -1
+    from_0: true
+    load_and_unload: true
+    bits_and_bytes: false
+    enable_sleep_mode: true
+    use_v0: true
+    enforce_eager: false
+
+# Generation settings
+generation:
+  max_turns: 10
+  max_tokens_in_conversation: 8192
+  max_tokens_per_turn: 1024
+  max_tokens_per_student_attempt: 3900
+  max_tokens_per_judge_attempt: 2048
+  tokenizer_to_use: "Qwen/Qwen2.5-7B-Instruct"
+  number_student_attempts: 4
+  number_judge_attempts: 0
+  ignore_rejected_judge: true
+  use_thinking: false
+  force_thinking: false
+  student_personas_prompts_paths: {}
+  judges_rules_prompts_paths: {}
+  student_names:
+    - "Alex"
+  student_initial_attempt_prompt_path: ""
+  student_final_prompt_path: ""
+  teacher_prompt_path: ""
+  initial_attempt_wrapper_prompt_path: ""
+  student_attempt_prompt_path: ""
+  extra_penalty_for_rejected_judges: 0.25
+  server_port: 8005
+  use_experimental_shared_memory: false
+
+# Random seed
+seed: 42

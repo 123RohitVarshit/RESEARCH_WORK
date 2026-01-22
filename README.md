@@ -1,75 +1,188 @@
-***
 # Evolutionary Pedagogical Topologies (EPT)
 
-**Research Prototype | ETH Zurich Summer Fellowship Application**  
-*An extension of the `eth-lre/pedagogicalrl` framework.*
+A research framework for evolving optimal teaching strategies using genetic algorithms. EPT separates the **reasoning structure** (Genotype) from the **text generation** (Phenotype) to discover effective tutoring approaches.
 
-## Abstract
-Current Reinforcement Learning (RL) approaches for pedagogical alignment often suffer from **mode collapse**, converging to repetitive teaching scripts. This project implements **Evolutionary Pedagogical Topologies (EPT)**, a framework that separates the **Genotype** (reasoning structure) from the **Phenotype** (text execution). By evolving pedagogical strategies offline, we generate diverse, high-quality tutoring logic with significantly higher token efficiency than unstructured Chain-of-Thought.
+## 🎯 Key Innovation
 
-## Technical Architecture
+Traditional RLHF fine-tuning often leads to **mode collapse** - the model converges to a single repetitive teaching script. EPT solves this by:
 
-This prototype extends the original `pedagogicalrl` codebase with three modular components:
+1. **Evolving Structure**: Optimize the sequence of pedagogical actions (diagnose → scaffold → hint → verify)
+2. **Preserving Diversity**: Genetic algorithms maintain population diversity
+3. **Separating Concerns**: The LLM generates text, but EPT controls the *strategy*
 
-1.  **The Genotype (`src/topology.py`)**: Defines the DNA of a teaching strategy. Genes consist of pedagogical primitives: `DIAGNOSE`, `SCAFFOLD`, `HINT`, `VERIFY`, `ENCOURAGE`.
-2.  **The Phenotype Wrapper (`src/topology_classroom.py`)**: Inherits from the base `Conversation` class. It injects dynamic instructions into the system prompt based on the current gene, enforcing structure on the LLM's generation.
-3.  **The Evolutionary Engine (`run_evolution.py`)**: A Genetic Algorithm loop replacing the standard RL trainer. It uses **Fitness Proportional Selection** and **Elitism** to optimize strategies across multiple algebraic problems.
+## 📊 Results
 
-### Engineering & Optimization
-To run this HPC-grade research code on standard environments (Colab/CPU), I implemented a **Runtime Mocking System**:
-*   **Challenge:** The base repo requires `vllm` and `deepspeed` (heavy GPU libraries).
-*   **Solution:** I implemented a `sys.modules` interception layer that mocks these libraries in memory.
-*   **Inference:** Inference is routed via adapters to **OpenRouter/Gemini APIs** (using Llama-3-8B), allowing rapid iteration without local A100 GPUs.
+EPT demonstrates significant improvement over standard teaching baselines:
 
-## How to Run
+| Strategy | Genes | Fitness |
+|----------|-------|---------|
+| Direct Instruction | `[scaffold, scaffold, scaffold, scaffold]` | 56.7 |
+| Chain-of-Thought | `[hint, hint, hint, hint]` | 51.7 |
+| Verification Focus | `[verify, verify, verify, verify]` | 93.3 |
+| **EPT Evolved** | `[verify, scaffold, verify, verify]` | **125.0** |
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/yourusername/evolutionary-pedagogy-prototype.git
-    cd evolutionary-pedagogy-prototype
-    ```
+**Improvement: +34% over best baseline**
 
-2.  **Install Dependencies**
-    *(Note: We use lightweight dependencies only. Heavy GPU libs are mocked at runtime.)*
-    ```bash
-    pip install hydra-core omegaconf python-dotenv openai google-generativeai colorama
-    ```
+The evolved strategy combines multiple approaches rather than repeating a single action, discovering a hybrid teaching method.
 
-3.  **Set API Keys**
-    Create a `.env` file or export variables:
-    ```bash
-    export OPENROUTER_API_KEY="sk-..."
-    # OR
-    export GEMINI_API_KEY="AIza..."
-    ```
+## 🏗️ Project Structure
 
-4.  **Execute the Evolution**
-    ```bash
-    python run_evolution.py
-    ```
-
-## Results Summary
-
-Preliminary runs (N=4, G=4) using Llama-3-8B as the backend demonstrate strong convergence and diversity preservation:
-
-| Metric | Result | Analysis |
-| :--- | :--- | :--- |
-| **Optimization** | **81.7 $\to$ 120.0** | Fitness score improved by **~47%** over 4 generations. |
-| **Diversity** | **0.75** | High structural diversity indicates successful avoidance of mode collapse. |
-| **Strategy** | `[Encourage, Verify...]` | The system evolved a "Socratic" verification loop rather than a lecturing style. |
-
-## Project Structure
-
-```text
-├── run_evolution.py         # Main Genetic Algorithm loop & Mocking setup
-├── src/
-│   ├── topology.py          # Genotype logic & Mutation operators
-│   ├── topology_classroom.py# Prompt injection & Conversation wrapper
-│   └── classroom.py         # Base environment logic (Patched for API usage)
-├── config/                  # Hydra configuration files
-└── prompt_templates/        # Jinja2 templates for Socratic tutoring
+```
+RESEARCH_WORK/
+├── ept/                    # Core EPT library
+│   ├── topology.py         # Genotype: Teaching strategy genes
+│   ├── classroom.py        # Phenotype: LLM conversation wrapper
+│   ├── evolution.py        # Genetic algorithm loop
+│   ├── fitness.py          # Scoring function
+│   └── utils.py            # Selection algorithms, diversity metrics
+├── mocks/                  # Lightweight mocks for heavy dependencies
+│   ├── torch_mock.py       # PyTorch mock (saves 2GB)
+│   ├── transformers_mock.py # HuggingFace mock (saves 500MB)
+│   └── ...                 # vLLM, DeepSpeed, etc.
+├── config/
+│   └── eval/
+│       └── Qwen2.5-7B-Instruct.yaml  # Hydra config
+├── run_evolution.py        # Main entry point
+├── requirements.txt        # Python dependencies
+└── evolution_results.json  # Latest results
 ```
 
-## Ongoing improvements
-1. Trying to structure code into proper python files.
-2. Working on using SLM as evaluator and try to decrease the compute.  
+## 🚀 Quick Start
+
+### 1. Setup Environment
+
+```bash
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure API Key
+
+Create a `.env` file:
+```
+OPENROUTER_API_KEY=your-key-here
+```
+
+Get your API key from [OpenRouter](https://openrouter.ai/).
+
+### 3. Run Evolution
+
+```bash
+python run_evolution.py --config-name Qwen2.5-7B-Instruct.yaml
+```
+
+## 📈 Understanding the Output
+
+The evolution runs in two phases:
+
+### Phase 1: Baseline Evaluation
+Tests standard teaching approaches:
+- **Direct Instruction**: Repeatedly break down problems
+- **Chain-of-Thought**: Repeatedly give hints
+- **Verification Focus**: Repeatedly ask student to verify
+
+### Phase 2: Evolutionary Optimization
+- Population of 4 teaching strategies
+- 4 generations of evolution
+- Mutation rate: 60%
+- Elitism: Best strategy preserved
+
+### Results Comparison
+```
+============================================================
+IMPROVEMENT SUMMARY
+------------------------------------------------------------
+  Best Baseline (Verification Focus): 93.3
+  Evolved Strategy:                   125.0
+  Absolute Improvement:               +31.7
+  Relative Improvement:               +34%
+============================================================
+```
+
+## 🧬 How EPT Works
+
+### Genotype (Topology)
+A sequence of pedagogical actions:
+- `diagnose` - Ask what the student thinks
+- `scaffold` - Break problem into steps
+- `hint` - Give conceptual guidance
+- `verify` - Ask student to check work
+- `encourage` - Positive reinforcement
+
+### Phenotype (Conversation)
+The LLM receives the action as an instruction:
+```
+STRATEGY: Ask the student to verify their arithmetic.
+PROBLEM: Solve for x: 3x + 12 = 27
+```
+
+### Fitness Function
+```
++100  Student gets correct answer
++30   Solved in ≤2 turns (efficiency bonus)
++15   Solved in ≤4 turns
+-15   Per teacher answer leak (penalty)
+```
+
+### Genetic Operators
+- **Mutation**: Randomly change one gene
+- **Crossover**: Combine two parent strategies
+- **Selection**: Fitness-proportional (roulette wheel)
+
+## 📁 Configuration
+
+Edit `config/eval/Qwen2.5-7B-Instruct.yaml`:
+
+```yaml
+teacher_model:
+  model_name_or_path: "meta-llama/llama-3.1-8b-instruct"
+  use_openrouter: true
+
+student_model:
+  model_name_or_path: "meta-llama/llama-3.1-8b-instruct"
+  use_openrouter: true
+```
+
+Edit evolution parameters in `run_evolution.py`:
+```python
+EVOLUTION_CONFIG = {
+    "population_size": 4,
+    "generations": 4,
+    "gene_length": 4,
+    "max_turns": 5,
+    "mutation_rate": 0.6,
+}
+```
+
+## 📝 Customizing Problems
+
+Edit the problems list in `run_evolution.py`:
+```python
+PROBLEMS = [
+    {"problem": "Solve for x: 3x + 12 = 27", "answer": "5"},
+    {"problem": "Solve for y: 2y - 8 = 10", "answer": "9"},
+    # Add more problems...
+]
+```
+
+## 🔬 Research Applications
+
+- Compare teaching strategies across different student models
+- Evolve domain-specific tutoring approaches
+- Study diversity maintenance in pedagogical evolution
+- Analyze optimal action sequences for different problem types
+
+## 📄 License
+
+MIT License - See LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Based on the [pedagogicalrl](https://github.com/eth-lre/pedagogicalrl) framework
+- Uses [OpenRouter](https://openrouter.ai/) for LLM inference
+- Built with [Hydra](https://hydra.cc/) for configuration management

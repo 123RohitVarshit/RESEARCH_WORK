@@ -1,0 +1,91 @@
+{
+  "baselines": {
+    "Direct Instruction": {
+      "genes": [
+        "scaffold",
+        "scaffold",
+        "scaffold",
+        "scaffold"
+      ],
+      "fitness": 56.666666666666664
+    },
+    "Chain-of-Thought": {
+      "genes": [
+        "hint",
+        "hint",
+        "hint",
+        "hint"
+      ],
+      "fitness": 51.666666666666664
+    },
+    "Verification Focus": {
+      "genes": [
+        "verify",
+        "verify",
+        "verify",
+        "verify"
+      ],
+      "fitness": 93.33333333333333
+    }
+  },
+  "evolved": {
+    "genes": [
+      "verify",
+      "scaffold",
+      "verify",
+      "verify"
+    ],
+    "fitness": 125.0
+  },
+  "improvement": {
+    "absolute": 31.66666666666667,
+    "percentage": 33.92857142857144,
+    "vs_baseline": "Verification Focus"
+  },
+  "evolution_history": {
+    "best_fitness": [
+      93.33333333333333,
+      93.33333333333333,
+      125.0,
+      88.33333333333333
+    ],
+    "avg_fitness": [
+      81.66666666666666,
+      71.25,
+      98.75,
+      77.91666666666666
+    ],
+    "diversity": [
+      1.0,
+      0.75,
+      0.5,
+      0.75
+    ],
+    "best_genes": [
+      [
+        "verify",
+        "hint",
+        "scaffold",
+        "scaffold"
+      ],
+      [
+        "diagnose",
+        "verify",
+        "encourage",
+        "encourage"
+      ],
+      [
+        "verify",
+        "scaffold",
+        "verify",
+        "verify"
+      ],
+      [
+        "verify",
+        "scaffold",
+        "verify",
+        "verify"
+      ]
+    ]
+  }
+}
