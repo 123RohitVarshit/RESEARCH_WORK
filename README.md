@@ -47,6 +47,48 @@ RESEARCH_WORK/
 └── evolution_results.json  # Latest results
 ```
 
+## 💡 Lightweight Mock System (No GPU Required)
+
+A key innovation of this project is the **mock system** that enables running on any machine without heavy dependencies:
+
+### The Problem
+The original pedagogicalrl framework requires:
+- **PyTorch**: ~2GB installation
+- **Transformers**: ~500MB installation  
+- **vLLM**: Requires CUDA GPU
+- **DeepSpeed**: Requires CUDA GPU
+
+This makes local development and testing nearly impossible without expensive GPU hardware.
+
+### The Solution
+We created lightweight mocks that provide the same interfaces without the heavy dependencies:
+
+| Mock | Replaced Library | Saves |
+|------|------------------|-------|
+| `torch_mock.py` | PyTorch | ~2GB |
+| `transformers_mock.py` | HuggingFace Transformers | ~500MB |
+| `vllm_mock.py` | vLLM inference engine | GPU requirement |
+| `deepspeed_mock.py` | DeepSpeed | GPU requirement |
+| `pynvml_mock.py` | NVIDIA GPU monitoring | GPU requirement |
+
+### How It Works
+```python
+# Before any imports, set up mocks
+from mocks import setup_all_mocks
+setup_all_mocks()
+
+# Now safe to import - uses mocks instead of real libraries
+from ept.classroom import Classroom
+```
+
+### API-Based Inference
+Instead of local GPU inference, we use **OpenRouter API** for LLM calls:
+- Works on any machine (laptop, cloud, etc.)
+- No GPU required
+- Pay-per-use pricing (~$0.001 per 1K tokens)
+
+This approach makes the research accessible to anyone, regardless of hardware.
+
 ## 🚀 Quick Start
 
 ### 1. Setup Environment
