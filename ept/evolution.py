@@ -10,11 +10,16 @@ The evolution process:
 3. Select high-fitness individuals
 4. Reproduce via mutation and crossover
 5. Repeat for N generations
+
+Supports both sync and async execution. Async mode evaluates
+all topologies in a generation concurrently for ~4x speedup.
 """
 
 import random
 import copy
+import asyncio
 import logging
+import time
 from typing import List, Dict, Any, Optional, Callable
 import numpy as np
 
@@ -274,6 +279,193 @@ def run_evolution(
     }
 
 
+# =============================================================================
+# Async Evaluation Functions
+# =============================================================================
+
+async def evaluate_topology_async(
+    topology: Topology,
+    problems: List[Dict[str, str]],
+    classroom: Any,
+    max_turns: int = 5,
+) -> float:
+    """
+    Evaluate a single topology across multiple problems concurrently.
+    
+    All problems run their conversations in parallel via asyncio.gather.
+    Each conversation is sequential (teacher→student→teacher), but
+    different conversations execute concurrently.
+    
+    Args:
+        topology: The Topology to evaluate
+        problems: List of problem dicts with 'problem' and 'answer' keys
+        classroom: Classroom instance with async methods
+        max_turns: Maximum conversation turns
+        
+    Returns:
+        Mean fitness score across all problems
+    """
+    from ept.classroom import Conversation
+
+    async def _evaluate_single_problem(problem_data: Dict[str, str]) -> float:
+        """Run one conversation and return its fitness score."""
+        conv = Conversation(
+            problem=problem_data["problem"],
+            answer=problem_data["answer"],
+            topology=topology
+        )
+        conv.start_conversation()
+        
+        # Run conversation (turns are sequential within a conversation)
+        await classroom.run_conversation_async(conv, max_turns=max_turns)
+        
+        return calculate_fitness(
+            conversation=conv.conversation,
+            answer=problem_data["answer"],
+            max_turns=max_turns
+        )
+
+    # Run all problems concurrently
+    scores = await asyncio.gather(
+        *[_evaluate_single_problem(p) for p in problems]
+    )
+    
+    return float(np.mean(scores))
+
+
+async def run_evolution_async(
+    classroom: Any,
+    generation_config: Any = None,
+    problems: Optional[List[Dict[str, str]]] = None,
+    population_size: int = 4,
+    generations: int = 4,
+    gene_length: int = 4,
+    max_turns: int = 5,
+    mutation_rate: float = 0.6,
+    elite_count: int = 1,
+    verbose: bool = True
+) -> Dict[str, Any]:
+    """
+    Async version of run_evolution.
+    
+    Evaluates ALL topologies in a generation concurrently.
+    With population_size=4 and 3 problems, this fires up to
+    12 conversations at once instead of running them one by one.
+    
+    Args:
+        classroom: Classroom instance with async methods
+        generation_config: Hydra configuration (kept for compatibility)
+        problems: List of problem dicts (uses defaults if None)
+        population_size: Number of individuals per generation
+        generations: Number of evolutionary generations
+        gene_length: Length of topology genes
+        max_turns: Max conversation turns per evaluation
+        mutation_rate: Probability of mutation vs crossover
+        elite_count: Number of elites to preserve
+        verbose: Print progress to console
+        
+    Returns:
+        Dict with 'best_topology', 'history', 'final_population'
+    """
+    problems = problems or DEFAULT_PROBLEMS
+    
+    if verbose:
+        print("\n=== EVOLUTIONARY TOPOLOGY SEARCH (ASYNC) ===")
+        print("=" * 60)
+    
+    # Initialize population
+    population = create_random_population(population_size, gene_length)
+    
+    # Track metrics
+    history = {
+        "best_fitness": [],
+        "avg_fitness": [],
+        "diversity": [],
+        "best_genes": [],
+        "gen_times": [],
+    }
+    
+    best_overall: Optional[Topology] = None
+    total_start = time.time()
+    
+    # Evolution loop
+    for gen in range(generations):
+        gen_start = time.time()
+        if verbose:
+            print(f"\n>> GENERATION {gen + 1}/{generations}")
+        
+        # Evaluate ALL topologies concurrently
+        fitness_scores = await asyncio.gather(
+            *[
+                evaluate_topology_async(
+                    topology=topology,
+                    problems=problems,
+                    classroom=classroom,
+                    max_turns=max_turns,
+                )
+                for topology in population
+            ]
+        )
+        
+        # Assign fitness scores
+        for topology, score in zip(population, fitness_scores):
+            topology.fitness = score
+        
+        gen_time = time.time() - gen_start
+        history["gen_times"].append(gen_time)
+        
+        if verbose:
+            for i, topology in enumerate(population):
+                status = "[OK]" if topology.fitness > 60 else "[--]"
+                print(f"   [Org {i}] {topology.genes} | Score: {topology.fitness:.1f} {status}")
+        
+        # Calculate stats
+        stats = get_population_stats(population)
+        
+        # Track best
+        best = max(population, key=lambda t: t.fitness)
+        if best_overall is None or best.fitness > best_overall.fitness:
+            best_overall = best.copy()
+        
+        # Record history
+        history["best_fitness"].append(stats["max"])
+        history["avg_fitness"].append(stats["mean"])
+        history["diversity"].append(stats["diversity"])
+        history["best_genes"].append(best.genes.copy())
+        
+        if verbose:
+            print(f"   -> Best={stats['max']:.1f}, Avg={stats['mean']:.1f}, Div={stats['diversity']:.2f} ({gen_time:.1f}s)")
+        
+        # Create next generation (skip on last iteration)
+        if gen < generations - 1:
+            population = create_next_generation(
+                population=population,
+                population_size=population_size,
+                mutation_rate=mutation_rate,
+                elite_count=elite_count
+            )
+    
+    total_time = time.time() - total_start
+    
+    # Final results
+    if verbose:
+        print("\n" + "=" * 60)
+        print("=== FINAL RESULTS ===")
+        print(f"Start Best: {history['best_fitness'][0]:.1f} -> End Best: {history['best_fitness'][-1]:.1f}")
+        print(f"Diversity: {history['diversity'][-1]:.2f}")
+        print(f"Best Strategy: {best_overall.genes}")
+        print(f"Total Time: {total_time:.1f}s (avg {total_time/generations:.1f}s/gen)")
+        print("=" * 60)
+    
+    return {
+        "best_topology": best_overall,
+        "history": history,
+        "final_population": population,
+        "total_time": total_time,
+    }
+
+
 if __name__ == "__main__":
     print("Evolution module loaded successfully.")
     print("To run evolution, use: python run_evolution.py")
+

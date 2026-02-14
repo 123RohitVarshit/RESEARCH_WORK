@@ -8,7 +8,7 @@ This script:
 1. Sets up mock libraries for pedagogicalrl
 2. Loads environment variables
 3. Initializes the Hydra config
-4. Runs the evolutionary algorithm
+4. Runs the evolutionary algorithm (async for speed)
 
 Usage:
     python run_evolution.py --config-name Qwen2.5-7B-Instruct.yaml
@@ -21,7 +21,9 @@ Usage:
 
 import os
 import sys
+import asyncio
 import logging
+import time
 from pathlib import Path
 
 # =============================================================================
@@ -58,7 +60,7 @@ from hydra.core.config_store import ConfigStore
 from dotenv import load_dotenv
 
 from omegaconf import DictConfig
-from ept.evolution import run_evolution, DEFAULT_PROBLEMS
+from ept.evolution import run_evolution_async, evaluate_topology_async, DEFAULT_PROBLEMS
 
 # Configure logging with UTF-8 handler
 logging.basicConfig(
@@ -96,13 +98,12 @@ PROBLEMS = [
 
 
 # =============================================================================
-# Main Function
+# Async Main Function
 # =============================================================================
 
-@hydra.main(config_path="config/eval", version_base=None)
-def main(cfg: DictConfig) -> None:
+async def run_experiment(cfg: DictConfig) -> None:
     """
-    Main entry point with Hydra configuration.
+    Run the full experiment: baselines + evolution (all async).
     
     Args:
         cfg: Hydra DictConfig object
@@ -119,24 +120,16 @@ def main(cfg: DictConfig) -> None:
     
     logger.info("[OK] API key loaded successfully")
     
-    # Use standalone EPT classroom (no pedagogicalrl dependency)
+    # Use standalone EPT classroom with multi-provider fallback
+    # Providers are auto-configured from .env (Groq → Cerebras → OpenRouter)
     from ept.classroom import Classroom
     
-    # Get model names from config
-    teacher_model = cfg.get("teacher_model", {}).get("model_name_or_path", "meta-llama/llama-3.1-8b-instruct")
-    student_model = cfg.get("student_model", {}).get("model_name_or_path", "meta-llama/llama-3.1-8b-instruct")
-    
-    # Create classroom instance
-    classroom = Classroom(
-        teacher_model=teacher_model,
-        student_model=student_model
-    )
+    classroom = Classroom()
     
     # =========================================================================
-    # BASELINE EVALUATION: Test standard teaching methods first
+    # BASELINE EVALUATION: Test standard teaching methods (async)
     # =========================================================================
     from ept.topology import Topology
-    from ept.evolution import evaluate_topology
     
     # Define proper baselines representing real teaching approaches
     BASELINES = {
@@ -155,35 +148,51 @@ def main(cfg: DictConfig) -> None:
     }
     
     logger.info("\n" + "="*60)
-    logger.info("PHASE 1: BASELINE EVALUATION")
+    logger.info("PHASE 1: BASELINE EVALUATION (ASYNC)")
     logger.info("="*60)
     
+    baseline_start = time.time()
+    
+    # Evaluate ALL baselines concurrently
+    baseline_names = list(BASELINES.keys())
+    baseline_topologies = list(BASELINES.values())
+    
+    baseline_scores = await asyncio.gather(
+        *[
+            evaluate_topology_async(
+                topology=topology,
+                problems=PROBLEMS,
+                classroom=classroom,
+                max_turns=EVOLUTION_CONFIG["max_turns"],
+            )
+            for topology in baseline_topologies
+        ]
+    )
+    
     baseline_results = {}
-    for name, topology in BASELINES.items():
-        score = evaluate_topology(
-            topology=topology,
-            problems=PROBLEMS,
-            classroom=classroom,
-            generation_config=cfg.generation,
-            max_turns=EVOLUTION_CONFIG["max_turns"]
-        )
+    for name, topology, score in zip(baseline_names, baseline_topologies, baseline_scores):
         topology.fitness = score
         baseline_results[name] = {"topology": topology, "score": score}
         logger.info(f"  {name}: {score:.1f}")
+    
+    baseline_time = time.time() - baseline_start
+    logger.info(f"  Baseline evaluation: {baseline_time:.1f}s")
     
     best_baseline_name = max(baseline_results, key=lambda k: baseline_results[k]["score"])
     best_baseline_score = baseline_results[best_baseline_name]["score"]
     
     # =========================================================================
-    # EVOLUTION: Optimize teaching strategy
+    # EVOLUTION: Optimize teaching strategy (async)
     # =========================================================================
     logger.info("\n" + "="*60)
-    logger.info("PHASE 2: EVOLUTIONARY OPTIMIZATION")
+    logger.info("PHASE 2: EVOLUTIONARY OPTIMIZATION (ASYNC)")
     logger.info("="*60)
     
-    results = run_evolution(
+    generation_config = cfg.get("generation", None)
+    
+    results = await run_evolution_async(
         classroom=classroom,
-        generation_config=cfg.generation,
+        generation_config=generation_config,
         problems=PROBLEMS,
         **EVOLUTION_CONFIG
     )
@@ -218,6 +227,14 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"  Evolved Strategy:                     {evolved.fitness:.1f}")
     logger.info(f"  Absolute Improvement:                 +{improvement:.1f}")
     logger.info(f"  Relative Improvement:                 +{improvement_pct:.1f}%")
+    
+    # Timing summary
+    total_time = results.get("total_time", 0) + baseline_time
+    logger.info(f"\n  Total wall-clock time:                {total_time:.1f}s")
+    logger.info(f"  Baseline eval time:                   {baseline_time:.1f}s")
+    if results.get("history", {}).get("gen_times"):
+        avg_gen = sum(results["history"]["gen_times"]) / len(results["history"]["gen_times"])
+        logger.info(f"  Avg generation time:                  {avg_gen:.1f}s")
     logger.info("="*60)
     
     # Save results to JSON
@@ -236,12 +253,32 @@ def main(cfg: DictConfig) -> None:
             "percentage": improvement_pct,
             "vs_baseline": best_baseline_name
         },
-        "evolution_history": results["history"]
+        "evolution_history": results["history"],
+        "timing": {
+            "total_seconds": total_time,
+            "baseline_seconds": baseline_time,
+            "mode": "async",
+        }
     }
     
     with open("evolution_results.json", "w") as f:
         json.dump(results_data, f, indent=2)
     logger.info(f"\nResults saved to: evolution_results.json")
+
+
+# =============================================================================
+# Hydra Entry Point
+# =============================================================================
+
+@hydra.main(config_path="config/eval", version_base=None)
+def main(cfg: DictConfig) -> None:
+    """
+    Main entry point with Hydra configuration.
+    
+    Args:
+        cfg: Hydra DictConfig object
+    """
+    asyncio.run(run_experiment(cfg))
 
 
 if __name__ == "__main__":

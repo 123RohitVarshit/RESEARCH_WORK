@@ -7,7 +7,7 @@
         "scaffold",
         "scaffold"
       ],
-      "fitness": 56.666666666666664
+      "fitness": 10.0
     },
     "Chain-of-Thought": {
       "genes": [
@@ -16,7 +16,7 @@
         "hint",
         "hint"
       ],
-      "fitness": 51.666666666666664
+      "fitness": 56.666666666666664
     },
     "Verification Focus": {
       "genes": [
@@ -25,67 +25,78 @@
         "verify",
         "verify"
       ],
-      "fitness": 93.33333333333333
+      "fitness": 51.666666666666664
     }
   },
   "evolved": {
     "genes": [
+      "diagnose",
       "verify",
-      "scaffold",
-      "verify",
-      "verify"
+      "encourage",
+      "hint"
     ],
-    "fitness": 125.0
+    "fitness": 93.33333333333333
   },
   "improvement": {
-    "absolute": 31.66666666666667,
-    "percentage": 33.92857142857144,
-    "vs_baseline": "Verification Focus"
+    "absolute": 36.666666666666664,
+    "percentage": 64.70588235294117,
+    "vs_baseline": "Chain-of-Thought"
   },
   "evolution_history": {
     "best_fitness": [
       93.33333333333333,
       93.33333333333333,
-      125.0,
-      88.33333333333333
+      93.33333333333333,
+      93.33333333333333
     ],
     "avg_fitness": [
+      72.5,
       81.66666666666666,
-      71.25,
-      98.75,
-      77.91666666666666
+      81.66666666666666,
+      90.83333333333333
     ],
     "diversity": [
       1.0,
-      0.75,
+      0.5,
       0.5,
       0.75
     ],
     "best_genes": [
       [
+        "diagnose",
         "verify",
-        "hint",
-        "scaffold",
-        "scaffold"
+        "encourage",
+        "hint"
       ],
       [
         "diagnose",
         "verify",
         "encourage",
-        "encourage"
+        "hint"
       ],
       [
+        "diagnose",
         "verify",
-        "scaffold",
-        "verify",
-        "verify"
+        "encourage",
+        "hint"
       ],
       [
+        "diagnose",
         "verify",
-        "scaffold",
-        "verify",
-        "verify"
+        "encourage",
+        "hint"
       ]
+    ],
+    "gen_times": [
+      18.405416011810303,
+      24.472742557525635,
+      52.554041385650635,
+      24.664894819259644
     ]
+  },
+  "timing": {
+    "total_seconds": 143.3319160938263,
+    "baseline_seconds": 23.22525668144226,
+    "mode": "async"
   }
 }
